@@ -1,74 +1,48 @@
+'use strict';
 require("dotenv").config();
-const http = require("http");
 const express = require("express");
-const nodemailer = require("nodemailer");
-const events = require("events");
-
-// cache our env variables
-const SERVICE = process.env.SERVICE; // Email servicce providers (eg, outlook, gmail, hotmail)
-const USER = process.env.USER; // valid email address
-const PASS = process.env.PASS; // email password
-const SENDER = process.env.SENDER; // valid email addrees
-const RECEIVER = process.env.RECEIVER; // valid email address
+const mailer = require('./mailer')
 const PORT = process.env.PORT || 5050;
+const app = express();
 
-// to trigger automatic email sending
-const eventEmitter = new events.EventEmitter();
+const SERVICE = process.env.SERVICE;
+const USER = process.env.APP_USER;
+const PASS = process.env.PASS;
 
-// initialize server instance
-const server = express();
 
-// configure message options
-const messageOptions = {
-  from: SENDER,
-  to: RECEIVER,
-  subject: "Sending emails in Nodejs app with Nodemailer sample",
-  html: `
-    <h1>Nodemailer emailling within Nodejs application</h1>
-    <p>You're receiving this email from Nodejs emailer sample</p>
-  `,
-};
+app.use(express.json({ limit: '1kb' }))
+app.use(express.urlencoded({ extended: false }))
 
-// create message transport
-const transporter = nodemailer.createTransport({
-  service: SERVICE,
-  auth: {
-    user: USER,
-    pass: PASS,
-  },
-});
+// Pinging server
+app.get('/', (req, res) => res.sendStatus(200))
 
-// actual sending
-const sendMessage = () => {
-  transporter.sendMail(messageOptions, (err, info) => {
-    if (err) {
-      console.log("Error while sending ________%s_______", err);
-      process.exit(0);
+app.post('/send/:sender', async (req, res, next) => {
+    const subject = req.body.title || 'Hello there!'
+    const msg = req.body.msg
+    const recipients = req.body.recipients
+    const sender = req.params.sender || '<no-reply@orji@test.com>'
+
+    try {
+        const mail = new mailer(SERVICE, USER, PASS, sender)
+        const send = await mail.send(subject, recipients, msg)
+        const data = {message_id: send.messageId, envelope: send.envelope.from }
+        res.status(200).send({message: 'Mail sent', status: 200, success: true, data})
+    } catch (err) {
+        next(err)
     }
-    console.log(info);
-  });
-};
+})
 
-// since this is a demo project
-// we'll use event emitter to register sendNotification
-// after 5 seconds of our server connection
-eventEmitter.on("sendNotification", () => {
-  console.info("sending message...");
-  sendMessage();
-});
+app.use('*', (req, res) => {
+    res.status(404).send({message: 'Not found', status: 404, success: false})
+})
 
-setTimeout(() => {
-  // trigger a sendNotification event
-  eventEmitter.emit("sendNotification");
-}, 5000);
-
-// Determine if our app is ran directly (standalone app) or as a required module
-// if ran directly, its require.main === module, then we spin up the server
+app.use((err, req, res, next) => {
+    console.log('got it here >> ')
+    res.status(er.status).send({message: 'Internal Server Error', status: 500, success: false})
+})
 
 if (require.main === module) {
-  http.createServer(server).listen(() => console.log("server on localhost:%s", PORT));
-} else {
-  // export the server instance to be used as a module
-  // usch as in testing environments
-  module.exports = server;
-}
+    app.listen(() => console.log("app on localhost:%s", PORT));
+} 
+
+module.exports = app;
