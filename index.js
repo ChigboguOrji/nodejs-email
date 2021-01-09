@@ -37,8 +37,7 @@ app.use('*', (req, res) => {
 })
 
 app.use((err, req, res, next) => {
-    console.log('got it here >> ')
-    res.status(er.status).send({message: 'Internal Server Error', status: 500, success: false})
+    res.status(err.status).send({message: 'Internal Server Error', status: 500, success: false})
 })
 
 if (require.main === module) {
